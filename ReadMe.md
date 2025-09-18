@@ -1,3 +1,14 @@
+## Purpose
+
+This is a fork of PCM Hammer 2.0 modified to disable CRC (checksum) enforcement. It exists for research, reverse engineering, and lab/bench testing only.
+
+- **Upstream Project:** [PCM Hammer 2.0](https://github.com/LegacyNsfw/PcmHammer)
+- **Change:** CRC validation and enforcement logic removed to allow bin files to save without passing CRC.
+- **Warning:** Disabling CRC removes important safety checks. Use only in a controlled environment with backups and a recovery plan. **Do not flash dumped images without first verifying integrity.**
+
+The remainder of this README is unchanged from the upstream project.
+
+
 ## Overview
 
 These tools currently support reading, writing, and data logging with General Motors P01, P04, P08, P10, P12, P59, 4 connector 98-02 Black Box and E54 Powertrain Control Modules (PCMs). 
