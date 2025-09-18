@@ -1,11 +1,14 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Runtime.CompilerServices;
+using System.Data;
+using System.Data.Common;
 
 namespace PcmHacking
 {
@@ -108,13 +111,13 @@ namespace PcmHacking
 
 
 
-            foreach (CanLogger.ParameterAndValue pv in logger.CanLogger.GetParameterValues())
+            foreach (CanLogger.ParameterValue pv in logger.CanLogger.GetParameterValues())
             {
-                builder.Append(pv.ValueAsString);
+                builder.Append(pv.Value);
                 builder.Append('\t');
                 builder.Append(pv.Units);
                 builder.Append('\t');
-                builder.AppendLine(pv.Parameter.Name);
+                builder.AppendLine(pv.Name);
 
 
                 /* TODO: How to make this work for CAN?
@@ -140,7 +143,7 @@ namespace PcmHacking
         private async Task<Logger> RecreateLogger(ParameterDatabase parameterDatabase)
         {
             this.canLogger?.Dispose();
-            this.canLogger = new CanLogger(parameterDatabase, this);
+            this.canLogger = new CanLogger(parameterDatabase);
 
             if (string.IsNullOrEmpty(this.canPortName))
             {
@@ -235,150 +238,125 @@ namespace PcmHacking
 
                         while (!this.logStopRequested)
                         {
-                            try
+                            // Re-create the logger with an updated profile if necessary.
+                            if (this.currentProfile != lastProfile)
                             {
-                                // Re-create the logger with an updated profile if necessary.
-                                if (this.currentProfile != lastProfile)
+                                this.StopSaving(ref streamWriter);
+
+                                if ((this.currentProfile == null) || this.currentProfile.IsEmpty)
                                 {
-                                    this.StopSaving(ref streamWriter);
+                                    this.logState = LogState.Nothing;
+                                    lastProfile = this.currentProfile;
+                                    logger = null;
 
-                                    if ((this.currentProfile == null) || this.currentProfile.IsEmpty)
-                                    {
-                                        this.logState = LogState.Nothing;
-                                        lastProfile = this.currentProfile;
-                                        logger = null;
-
-                                        this.loggerProgress.Invoke(
-                                            (MethodInvoker)
-                                            delegate ()
-                                            {
-                                                this.startStopSaving.Enabled = false;
-                                                this.logValues.Text = "Please select some parameters, or open a log profile.";
-                                            });
-                                    }
-                                    else
-                                    {
-                                        Exception exception = null;
-
-                                        try
+                                    this.loggerProgress.Invoke(
+                                        (MethodInvoker)
+                                        delegate ()
                                         {
-                                            // It may be counterintuitive that we update lastProfile here, but that 
-                                            // prevents the invalid parameter exception from being thrown repeatedly.
-                                            lastProfile = this.currentProfile;
-                                            logger = await this.RecreateLogger(this.database);
-
-                                            // If this was the first profile to load...
-                                            if (this.logState == LogState.Nothing)
-                                            {
-                                                this.logState = LogState.DisplayOnly;
-                                            }
-
-                                            switch (logState)
-                                            {
-                                                case LogState.Nothing:
-                                                case LogState.DisplayOnly:
-                                                case LogState.StopSaving:
-                                                    break;
-
-                                                default:
-                                                    var tuple = await this.StartSaving(logger);
-                                                    logFileWriter = tuple.Item1;
-                                                    streamWriter = tuple.Item2;
-                                                    logState = LogState.Saving;
-                                                    break;
-                                            }
-                                        }
-                                        catch (NeedMoreParametersException ex)
-                                        {
-                                            exception = ex;
-                                        }
-                                        catch (ParameterNotSupportedException ex)
-                                        {
-                                            exception = ex;
-                                        }
-                                        catch (LogStartFailedException ex)
-                                        {
-                                            // This will cause the logger to be recreated on the next iteration.
-                                            lastProfile = null;
-
-                                            exception = ex;
-                                        }
-                                        finally
-                                        {
-                                            if (exception != null)
-                                            {
-                                                logState = LogState.Nothing;
-
-                                                this.loggerProgress.Invoke(
-                                                    (MethodInvoker)
-                                                    delegate ()
-                                                    {
-                                                        this.AddUserMessage(exception.Message);
-                                                        this.startStopSaving.Enabled = false;
-                                                        this.logValues.Text = exception.Message;
-                                                    });
-                                            }
-                                            else
-                                            {
-                                                this.loggerProgress.Invoke(
-                                                    (MethodInvoker)
-                                                    delegate ()
-                                                    {
-                                                        this.startStopSaving.Enabled = true;
-                                                    });
-                                            }
-                                        }
-                                    }
+                                            this.startStopSaving.Enabled = false;
+                                            this.logValues.Text = "Please select some parameters, or open a log profile.";
+                                        });
                                 }
-
-                                switch (logState)
+                                else
                                 {
-                                    case LogState.Nothing:
-                                        Thread.Sleep(100);
-                                        break;
+                                    Exception exception = null;
 
-                                    case LogState.DisplayOnly:
-                                        if (logger != null)
+                                    try
+                                    {
+                                        // It may be counterintuitive that we update lastProfile here, but that 
+                                        // prevents the invalid parameter exception from being thrown repeatedly.
+                                        lastProfile = this.currentProfile;
+                                        logger = await this.RecreateLogger(this.database);
+
+                                        // If this was the first profile to load...
+                                        if (this.logState == LogState.Nothing)
                                         {
-                                            await this.ProcessRow(logger, null);
+                                            this.logState = LogState.DisplayOnly;
                                         }
-                                        break;
 
-                                    case LogState.StartSaving:
-                                        if (logger != null)
+                                        switch (logState)
                                         {
-                                            var tuple = await this.StartSaving(logger);
-                                            logFileWriter = tuple.Item1;
-                                            streamWriter = tuple.Item2;
-                                            logState = LogState.Saving;
-                                        }
-                                        break;
+                                            case LogState.Nothing:
+                                            case LogState.DisplayOnly:
+                                            case LogState.StopSaving:
+                                                break;
 
-                                    case LogState.Saving:
-                                        if (logger != null)
+                                            default:
+                                                var tuple = await this.StartSaving(logger);
+                                                logFileWriter = tuple.Item1;
+                                                streamWriter = tuple.Item2;
+                                                logState = LogState.Saving;
+                                                break;
+                                        }
+                                    }
+                                    catch (NeedMoreParametersException ex)
+                                    {
+                                        exception = ex;
+                                    }
+                                    catch (ParameterNotSupportedException ex)
+                                    {
+                                        exception = ex;
+                                    }
+                                    catch (LogStartFailedException ex)
+                                    {
+                                        // This will cause the logger to be recreated on the next iteration.
+                                        lastProfile = null;
+
+                                        exception = ex;
+                                    }
+                                    finally
+                                    {
+                                        if (exception != null)
                                         {
-                                            await this.ProcessRow(logger, logFileWriter);
-                                        }
-                                        break;
+                                            logState = LogState.Nothing;
 
-                                    case LogState.StopSaving:
-                                        this.StopSaving(ref streamWriter);
-                                        this.logState = LogState.DisplayOnly;
-                                        break;
+                                            this.loggerProgress.Invoke(
+                                                (MethodInvoker)
+                                                delegate ()
+                                                {
+                                                    this.AddUserMessage(exception.Message);
+                                                    this.startStopSaving.Enabled = false;
+                                                    this.logValues.Text = exception.Message;
+                                                });
+                                        }
+                                    }
                                 }
                             }
-                            catch (Exception exception)
-                            {
-                                this.AddUserMessage("Logging interrupted. " + exception.Message);
-                                this.AddDebugMessage(exception.ToString());
-                                this.logValues.Invoke(
-                                    (MethodInvoker)
-                                    delegate ()
-                                    {
-                                        this.logValues.Text = "Logging interrupted. " + exception.Message;
-                                        this.startStopSaving.Focus();
-                                    });
 
+                            switch (logState)
+                            {
+                                case LogState.Nothing:
+                                    Thread.Sleep(100);
+                                    break;
+
+                                case LogState.DisplayOnly:
+                                    if (logger != null)
+                                    {
+                                        await this.ProcessRow(logger, null);
+                                    }
+                                    break;
+
+                                case LogState.StartSaving:
+                                    if (logger != null)
+                                    {
+                                        var tuple = await this.StartSaving(logger);
+                                        logFileWriter = tuple.Item1;
+                                        streamWriter = tuple.Item2;
+                                        logState = LogState.Saving;
+                                    }
+                                    break;
+
+                                case LogState.Saving:
+                                    if (logger != null)
+                                    {
+                                        await this.ProcessRow(logger, logFileWriter);
+                                    }
+                                    break;
+
+                                case LogState.StopSaving:
+                                    this.StopSaving(ref streamWriter);
+                                    this.logState = LogState.DisplayOnly;
+                                    break;
                             }
                         }
 
@@ -397,16 +375,18 @@ namespace PcmHacking
                 }
                 catch (Exception exception)
                 {
-
-                    this.AddUserMessage("Logging broken. " + exception.Message);
-                    this.AddDebugMessage(exception.ToString());
-                    this.logValues.Invoke(
-                        (MethodInvoker)
-                        delegate ()
-                        {
-                            this.logValues.Text = "Logging broken. " + exception.Message;
-                            this.startStopSaving.Focus();
-                        });
+                    if (!logStopRequested)
+                    {
+                        this.AddUserMessage("Logging halted. " + exception.Message);
+                        this.AddDebugMessage(exception.ToString());
+                        this.logValues.Invoke(
+                            (MethodInvoker)
+                            delegate ()
+                            {
+                                this.logValues.Text = "Logging halted. " + exception.Message;
+                                this.startStopSaving.Focus();
+                            });
+                    }
                 }
                 finally
                 {

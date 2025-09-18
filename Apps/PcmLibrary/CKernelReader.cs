@@ -200,7 +200,7 @@ namespace PcmHacking
                 logger.AddUserMessage("Read complete.");
                 Utility.ReportRetryCount("Read", retryCount, pcmInfo.ImageSize, this.logger);
 
-                if (this.pcmInfo.FlashCRCSupport && this.pcmInfo.FlashIDSupport)
+                /*if (this.pcmInfo.FlashCRCSupport && this.pcmInfo.FlashIDSupport)
                 {
                     logger.AddUserMessage("Starting verification...");
 
@@ -227,7 +227,7 @@ namespace PcmHacking
                         logger.AddUserMessage("There are errors in the data that was read from the PCM. Do not use this file.");
                         logger.AddUserMessage("##############################################################################");
                     }
-                }
+                }*/
 
                 MemoryStream stream = new MemoryStream(image);
                 return new Response<Stream>(ResponseStatus.Success, stream);

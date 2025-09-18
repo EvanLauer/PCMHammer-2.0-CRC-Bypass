@@ -92,66 +92,46 @@ namespace PcmHacking
 
                 await this.vehicle.SendToolPresentNotification();
                 this.vehicle.ClearDeviceMessageQueue();
-                logger.StatusUpdateActivity($"Processing CRC for range {range.Address:X6}-{range.Address + (range.Size - 1):X6}");
-
-                // For C Kernels each poll of the pcm causes it to CRC 16kb of segment data.
-                // When the segment sum is available it is returned.
-                int maxAttempts = 50; // Logged highs of 38 on 1m P12, the rest are a good deal lower.
-                int retryDelay = 50; // used for polling speed
-                bool success = false;
-                UInt32 crc = 0;
 
                 Message query = this.protocol.CreateCrcQuery(range.Address, range.Size);
-                for (int segment = 0; segment < maxAttempts; segment++)
+
+                logger.StatusUpdateActivity($"Processing CRC for range {range.Address:X6}-{range.Address + (range.Size - 1):X6}");
+
+                if (cancellationToken.IsCancellationRequested)
                 {
-                    logger.StatusUpdateActivity($"Processing CRC for range {range.Address:X6}-{range.Address + (range.Size - 1):X6}");
-                    logger.StatusUpdateProgressBar((double)segment / maxAttempts, true);
-
-                    if (cancellationToken.IsCancellationRequested)
-                    {
-                        return false;
-                    }
-
-                    await this.vehicle.SendToolPresentNotification();
-
-                    if (!await this.vehicle.SendMessage(query))
-                    {
-                        this.logger.AddUserMessage($"CRC query failed reading range {range.Address.ToString("X8")} / {range.Size.ToString("X8")}");
-                        continue;
-                    }
-
-                    int RXmaxAttempts = 5;
-                    Message response = await this.vehicle.ReceiveMessage();
-                    if (response == null)
-                        {
-                        for (int j = 0; j < RXmaxAttempts; j++)
-                        {
-                            if (cancellationToken.IsCancellationRequested)
-                            {
-                                return false;
-                            }
-                            this.logger.AddDebugMessage($"CRC read failed, re-trying {range.Address.ToString("X8")} / {range.Size.ToString("X8")}");
-                            response = await this.vehicle.ReceiveMessage();
-                            if (response == null)
-                            {
-                                continue;
-                            }
-                            break;
-                        }
-                    }
-                    Response<UInt32> crcResponse = this.protocol.ParseCrc(response, range.Address, range.Size);
-                    if (crcResponse.Status != ResponseStatus.Success)
-                    {
-                        await Task.Delay(retryDelay);
-                        continue;
-                    }
-                    success = true;
-                    crc = crcResponse.Value;
-                    break;
+                    return false;
                 }
-                logger.StatusUpdateProgressBar(0, false);
 
-                if (!success)
+                await this.vehicle.SendToolPresentNotification();
+
+                if (!await this.vehicle.SendMessage(query))
+                {
+                    this.logger.AddUserMessage($"CRC query failed reading range {range.Address.ToString("X8")} / {range.Size.ToString("X8")}");
+                    continue;
+                }
+
+                int maxAttempts = 5;
+                Message response = await this.vehicle.ReceiveMessage();
+                if (response == null)
+                {
+                    for (int i = 0; i < maxAttempts; i++)
+                    {
+                        if (cancellationToken.IsCancellationRequested)
+                        {
+                            return false;
+                        }
+                        this.logger.AddDebugMessage($"CRC read failed, re-trying {range.Address.ToString("X8")} / {range.Size.ToString("X8")}");
+                        response = await this.vehicle.ReceiveMessage();
+                        if (response == null)
+                        {
+                            continue;
+                        }
+                        break;
+                    }
+                }
+
+                Response<UInt32> crcResponse = this.protocol.ParseCrc(response, range.Address, range.Size);
+                if (crcResponse.Status != ResponseStatus.Success)
                 {
                     this.logger.AddUserMessage("Unable to get CRC for memory range " + range.Address.ToString("X8") + " / " + range.Size.ToString("X8"));
                     successForAllRanges = false;
@@ -160,7 +140,7 @@ namespace PcmHacking
 
                 this.vehicle.ClearDeviceMessageQueue();
 
-                range.ActualCrc = crc;
+                range.ActualCrc = crcResponse.Value;
                
                 this.logger.AddUserMessage(
                     string.Format(

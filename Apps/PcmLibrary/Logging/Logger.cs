@@ -1,4 +1,6 @@
-﻿using System;
+﻿//#define FAST_LOGGING
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -263,25 +265,17 @@ namespace PcmHacking
         /// </summary>
         public async Task<bool> StartLogging()
         {
-            try
-            {
-                this.dpids = await this.vehicle.ConfigureDpids(this.dpidConfiguration, this.osid);
+            this.dpids = await this.vehicle.ConfigureDpids(this.dpidConfiguration, this.osid);
 
-                if (this.dpids == null)
-                {
-                    return false;
-                }
-
-                // This part differs for the fast and slow loggers.
-                await this.StartLoggingInternal();
-                return true;
-            }
-            catch (Exception exception)
+            if (this.dpids == null)
             {
-                this.uiLogger.AddUserMessage("Unable to start logging: " + exception.Message);
-                this.uiLogger.AddDebugMessage(exception.ToString());
                 return false;
-            }            
+            }
+
+            // This part differs for the fast and slow loggers.
+            await this.StartLoggingInternal();
+
+            return true;
         }
 
         protected abstract Task<bool> StartLoggingInternal();
@@ -302,7 +296,7 @@ namespace PcmHacking
                 PcmParameterValues dpidValues = row.Evaluate();
 
                 IEnumerable<string> mathValues = this.mathValueProcessor.GetMathValues(dpidValues);
-                IEnumerable<string> canValues = this.canLogger.GetParameterValues().Select(x => x.ValueAsString);
+                IEnumerable<string> canValues = this.canLogger.GetParameterValues().Select(x => x.Value);
 
                 return dpidValues
                         .Select(x => x.Value.ValueAsString)

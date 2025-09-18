@@ -158,10 +158,7 @@ namespace PcmHacking
                     {
                         this.state = State.Expect55;
                     }
-                    else
-                    {
-                        this.state = State.ExpectMessageByte2;
-                    }
+                    this.state = State.ExpectMessageByte2;
                     break;
 
                 case State.ExpectMessageByte2:
@@ -170,10 +167,7 @@ namespace PcmHacking
                     {
                         this.state = State.Expect55;                    
                     }
-                    else
-                    {
-                        this.state = State.ExpectMessageByte3;
-                    }
+                    this.state = State.ExpectMessageByte3;
                     break;
 
                 case State.ExpectMessageByte3:
@@ -182,11 +176,7 @@ namespace PcmHacking
                     {
                         this.state = State.Expect55;
                     }
-                    else
-                    {
-                        this.state = State.ExpectMessageByte4;
-                    }
-
+                    this.state = State.ExpectMessageByte4;
                     break;
 
                 case State.ExpectMessageByte4:
@@ -195,11 +185,7 @@ namespace PcmHacking
                     {
                         this.state = State.Expect55;
                     }
-                    else
-                    {
-                        this.state = State.ExpectMessageByte5;
-                    }
-
+                    this.state = State.ExpectMessageByte5;
                     break;
 
                 case State.ExpectMessageByte5:
@@ -208,10 +194,7 @@ namespace PcmHacking
                     {
                         this.state = State.Expect55;
                     }
-                    else
-                    {
-                        this.state = State.ExpectMessageByte6;
-                    }
+                    this.state = State.ExpectMessageByte6;
                     break;
 
                 case State.ExpectMessageByte6:
@@ -220,10 +203,7 @@ namespace PcmHacking
                     {
                         this.state = State.Expect55;
                     }
-                    else
-                    {
-                        this.state = State.ExpectMessageByte7;
-                    }
+                    this.state = State.ExpectMessageByte7;
                     break;
 
                 case State.ExpectMessageByte7:
@@ -232,14 +212,15 @@ namespace PcmHacking
                     {
                         this.state = State.Expect55;
                     }
-                    else
-                    {
-                        this.state = State.ExpectMessageByte8;
-                    }
+                    this.state = State.ExpectMessageByte8;
                     break;
 
                 case State.ExpectMessageByte8:
                     this.payload[7] = value;
+                    if (this.payloadLength == 8)
+                    {
+                        this.state = State.Expect55;
+                    }
                     this.state = State.Expect55;
                     break;
 

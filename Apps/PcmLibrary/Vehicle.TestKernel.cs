@@ -93,7 +93,7 @@ namespace PcmHacking
                         return false;
                     }
 
-                    this.logger.AddUserMessage("Unlock OK.");
+                    this.logger.AddUserMessage("Unlock succeeded.");
 
                     if (cancellationToken.IsCancellationRequested)
                     {
